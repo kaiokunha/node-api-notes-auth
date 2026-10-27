@@ -1,6 +1,9 @@
 import { Router } from "express";
+import * as authController from "../controllers/auth.js";
 import * as notesController from "../controllers/notes.js";
+import { requireAuth } from "../middlewares/auth.js";
 import { validate } from "../middlewares/validate.js";
+import { loginSchema, registerSchema } from "../schemas/auth.js";
 import {
   createNoteSchema,
   noteIdParamsSchema,
@@ -9,23 +12,39 @@ import {
 
 const router = Router();
 
-router.post("/notes", validate(createNoteSchema, "body"), notesController.create);
-router.get("/notes", notesController.findAll);
-router.get(
-  "/notes/:id",
+router.post(
+  "/auth/register",
+  validate(registerSchema, "body"),
+  authController.register,
+);
+router.post(
+  "/auth/login",
+  validate(loginSchema, "body"),
+  authController.login,
+);
+
+const notesRouter = Router();
+
+notesRouter.use(requireAuth);
+notesRouter.post("/", validate(createNoteSchema, "body"), notesController.create);
+notesRouter.get("/", notesController.findAll);
+notesRouter.get(
+  "/:id",
   validate(noteIdParamsSchema, "params"),
   notesController.findById,
 );
-router.put(
-  "/notes/:id",
+notesRouter.put(
+  "/:id",
   validate(noteIdParamsSchema, "params"),
   validate(updateNoteSchema, "body"),
   notesController.update,
 );
-router.delete(
-  "/notes/:id",
+notesRouter.delete(
+  "/:id",
   validate(noteIdParamsSchema, "params"),
   notesController.remove,
 );
+
+router.use("/notes", notesRouter);
 
 export default router;
