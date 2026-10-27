@@ -1,6 +1,6 @@
 # API de CRUD de Notas
 
-API REST simples em Node.js + TypeScript para gerenciar notas, com PostgreSQL, Drizzle ORM e validação Zod.
+API REST simples em Node.js + TypeScript para gerenciar notas com autenticação por token opaco, ownership por usuário, PostgreSQL, Drizzle ORM e validação Zod.
 
 ## Pré-requisitos
 
@@ -34,11 +34,15 @@ npm run db:generate
 npm run db:migrate
 ```
 
-5. (Opcional) Popule notas de exemplo:
+> **Breaking change:** a migration adiciona a tabela `users` e a coluna `notes.id_user` (FK com cascade). Em desenvolvimento, se houver notas antigas sem dono, limpe/recrie o banco antes de migrar e rode o seed.
+
+5. (Opcional) Popule usuários e notas de exemplo:
 
 ```bash
 npm run db:seed
 ```
+
+Usuários de exemplo: `demo@example.com` / `password123` e `alice@example.com` / `password123`.
 
 6. Inicie a API em modo desenvolvimento:
 
@@ -56,38 +60,69 @@ A API fica disponível em `http://localhost:3000`.
 | `npm run build` | Compila TypeScript para `./dist` |
 | `npm run db:generate` | Gera migrations a partir do schema |
 | `npm run db:migrate` | Aplica migrations no banco |
-| `npm run db:seed` | Insere notas de exemplo |
+| `npm run db:seed` | Insere usuários e notas de exemplo |
+
+## Autenticação
+
+A API usa token aleatório opaco (não JWT). No register/login o token é gerado, salvo em `users.token` e devolvido na resposta. Nas rotas de notas, envie:
+
+```
+Authorization: Bearer <token>
+```
+
+Cada login bem-sucedido gera um novo token e invalida o anterior. Todas as notas pertencem ao usuário autenticado (`notes.id_user`).
 
 ## Endpoints
 
-| Método | Path | Descrição |
-|--------|------|-----------|
-| `POST` | `/notes` | Criar nota |
-| `GET` | `/notes` | Listar todas as notas |
-| `GET` | `/notes/:id` | Buscar nota por id |
-| `PUT` | `/notes/:id` | Atualizar nota |
-| `DELETE` | `/notes/:id` | Excluir nota |
+| Método | Path | Auth | Descrição |
+|--------|------|------|-----------|
+| `POST` | `/auth/register` | Não | Criar usuário e obter token |
+| `POST` | `/auth/login` | Não | Autenticar e obter token |
+| `POST` | `/notes` | Sim | Criar nota do usuário logado |
+| `GET` | `/notes` | Sim | Listar notas do usuário logado |
+| `GET` | `/notes/:id` | Sim | Buscar nota do usuário logado |
+| `PUT` | `/notes/:id` | Sim | Atualizar nota do usuário logado |
+| `DELETE` | `/notes/:id` | Sim | Excluir nota do usuário logado |
 
 ### Exemplos
+
+**Registrar**
+
+```bash
+curl -X POST http://localhost:3000/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@example.com","password":"password123"}'
+```
+
+**Login**
+
+```bash
+curl -X POST http://localhost:3000/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"demo@example.com","password":"password123"}'
+```
 
 **Criar nota**
 
 ```bash
 curl -X POST http://localhost:3000/notes \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <token>" \
   -d '{"title":"Minha nota","content":"Conteúdo da nota"}'
 ```
 
 **Listar notas**
 
 ```bash
-curl http://localhost:3000/notes
+curl http://localhost:3000/notes \
+  -H "Authorization: Bearer <token>"
 ```
 
 **Buscar por id**
 
 ```bash
-curl http://localhost:3000/notes/<uuid>
+curl http://localhost:3000/notes/<uuid> \
+  -H "Authorization: Bearer <token>"
 ```
 
 **Atualizar nota**
@@ -95,13 +130,15 @@ curl http://localhost:3000/notes/<uuid>
 ```bash
 curl -X PUT http://localhost:3000/notes/<uuid> \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <token>" \
   -d '{"title":"Título atualizado","content":"Novo conteúdo"}'
 ```
 
 **Excluir nota**
 
 ```bash
-curl -X DELETE http://localhost:3000/notes/<uuid>
+curl -X DELETE http://localhost:3000/notes/<uuid> \
+  -H "Authorization: Bearer <token>"
 ```
 
 ## Variáveis de ambiente
